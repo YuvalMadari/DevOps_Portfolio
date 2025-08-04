@@ -1,0 +1,123 @@
+# Default values for cowsay
+replicaCount: 3
+
+image:
+  repository: 793786247026.dkr.ecr.ap-south-1.amazonaws.com/yuvalm/cowsaydevops
+  tag: "1.0.1"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"  # Force HTTPS
+    nginx.ingress.kubernetes.io/rewrite-target: "/"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # Use your ClusterIssuer
+  hosts:
+    - host: yuvalm-dc.ddns.net  # Use your domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - yuvalm-dc.ddns.net
+      secretName: cowsay-tls  # SSL certificate secret name
+
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Application specific configuration
+app:
+  name: cowsay
+  port: 5000
+
+# PostgreSQL configuration (sub-chart)
+# Bitnami PostgreSQL Helm Values (Direct Chart Installation)
+# Creates 1 primary + 2 read replicas (3 total pods)
+postgresql:
+  architecture: replication
+
+  auth:
+    postgresPassword: "postgrespass"
+    username: "postgres"
+    password: "postgrespass"
+    database: "mydb"
+    replicationPassword: "replicationpass"  # Add this line
+    
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "gp2"
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      storageClass: "gp2"
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    
+  service:
+    ports:
+      postgresql: 5432
+    
+  metrics:
+    enabled: false
+
+# Environment variables for the Flask app
+env:
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgrespass"  # In production, use secrets
+  DB_HOST: "cowsay-postgresql-primary"  # Will be the service name
+  DB_PORT: "5432"
+  DB_NAME: "mydb"

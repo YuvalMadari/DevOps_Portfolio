@@ -1,0 +1,6 @@
+flask
+cowsay
+python-dotenv # for grep the vars from the .env file 
+flask_sqlalchemy 
+psycopg2-binary
+prometheus_flask_exporter # for monitoring purpose 

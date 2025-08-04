@@ -1,0 +1,233 @@
+pipeline {
+    agent any
+
+    triggers {
+        gitlab(triggerOnPush: true, triggerOnMergeRequest: true)
+    }
+
+    options {
+        timeout(time: 5, unit: "MINUTES")
+        timestamps()
+    }
+
+    environment {
+        EC2 = "13.202.10.136"
+        ECR = "793786247026.dkr.ecr.ap-south-1.amazonaws.com"
+        IMAGE_NAME = "cowsaydevops"
+    }
+
+
+    stages {
+
+        stage("Validate Branch") { 
+            steps {
+                script {
+                    def valid = (
+                        env.BRANCH_NAME == 'main' ||
+                        env.BRANCH_NAME.startsWith('release/') || 
+                        env.BRANCH_NAME.startsWith('feature/')
+                    )
+
+                    if (!valid) {
+                        error """
+                        This pipeline is only intended for:
+                        - 'main' branch
+                        - 'feature/*' branches
+                        - 'release/*' branches
+
+                         Current branch '${env.BRANCH_NAME}' is not allowed.
+                        """
+                    } else {
+                        echo " Branch '${env.BRANCH_NAME}' is valid for this pipeline."
+                    }
+                }
+            }
+        }
+
+        // stage('Checkout') { 
+        //     steps {
+        //         checkout scm   
+        //     }
+        // }
+
+        stage('Version') { 
+            steps {
+                script {
+                    def fileExists = fileExists('version.txt')
+                    if (fileExists) {
+                        echo "Version.txt Exists"
+                        def versionFromFile = readFile('version.txt').trim()
+                        def matcher = versionFromFile =~ /^(\d+)\.(\d+)\.(\d+)$/
+                        if (matcher.matches()) {
+                            env.VERSION = versionFromFile
+                            echo "Valid version found: ${versionFromFile}"
+                        } else {
+                            env.VERSION = 'latest'
+                            echo "Invalid version format. Using VERSION=latest"
+                        }
+                    } else {
+                        env.VERSION = 'latest'
+                        echo "Version.txt not found. Using VERSION=latest"
+                    }
+
+                    echo "Final VERSION = ${env.VERSION}"
+                }
+            }
+        }
+
+        stage("Package") {
+            steps {
+                sh """
+                    docker build -t ${env.IMAGE_NAME}:${env.VERSION} .
+                    docker build -t nginx:${env.VERSION} -f Dockerfile.nginx .
+                """
+            }
+        }
+
+        stage('Unit Test'){ 
+            steps{
+                sh """
+                    docker run --rm ${env.IMAGE_NAME}:${env.VERSION} python unit_test.py
+                """
+            }
+        }
+    
+        stage('E2E test') {
+            steps {
+                configFileProvider([configFile(fileId: '.env', variable: 'ENV_FILE')]) {
+                sh """
+                    cp \$ENV_FILE .env
+                    echo 'IMAGE_NAME=${env.IMAGE_NAME}' >> .env
+                    echo 'VERSION=${env.VERSION}' >> .env
+                """
+                }
+                sh '''
+                    docker compose up --build -d 
+
+                    START_TIME=$(date +%s)
+                    TIMEOUT=300  # 5 minutes
+
+                    while true; do
+                        STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://$EC2/health || true)
+                        if [ "$STATUS" = "200" ]; then
+                            echo "App is up and responding"
+                            break
+                        fi
+
+                        NOW=$(date +%s)
+                        ELAPSED=$((NOW - START_TIME))
+                        if [ $ELAPSED -ge $TIMEOUT ]; then
+                            echo "Timeout: App did not become ready in $TIMEOUT seconds"
+                            exit 1
+                        fi
+
+                        echo "Waiting for app... (HTTP $STATUS)"
+                        sleep 5
+                    done
+                    chmod +x e2e_test.sh
+                    ./e2e_test.sh $EC2
+                    docker compose down 
+                '''
+            }
+        }
+
+        stage("Tag") {
+            when { 
+                branch 'main'
+            }
+            steps {
+                script {
+
+                    sh '''
+                        git config user.name "yuvalmadari1"
+                        git config user.email "yuvalmadari1@gmail.com"
+                    '''
+                        sh " git tag -a ${env.VERSION} -m 'tag ${env.VERSION}' "
+
+                        withCredentials([sshUserPrivateKey(credentialsId: 'GitLab', keyFileVariable: 'SSH_KEY')]) {
+                            sh """
+                                eval `ssh-agent -s`
+                                ssh-add $SSH_KEY
+
+                                # Make sure the remote is using SSH URL
+                                # git remote set-url origin git@gitlab.com:yuvalmadari1/protfilio_app.git
+
+                                # Push the tag
+                                # git push origin ${env.VERSION}
+                            """
+                    }
+                }
+            }
+        }
+
+        stage("Publish") {
+            when {
+                branch 'main'
+            }           
+            steps {
+                sh """
+                    aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ${ECR}
+                    docker tag ${env.IMAGE_NAME}:${env.VERSION}  ${ECR}/yuvalm/${env.IMAGE_NAME}:${env.VERSION}
+                    docker push  ${ECR}/yuvalm/${env.IMAGE_NAME}:${env.VERSION}
+                """
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }           
+            steps {
+                script {
+                    withCredentials([sshUserPrivateKey(credentialsId: 'GitLab', keyFileVariable: 'SSH_KEY')]) {
+                        sh """
+                            eval \$(ssh-agent -s)
+                            ssh-add \$SSH_KEY
+                            git clone git@gitlab.com:yuvalmadari1/protfilio_gitops.git
+                        """
+                        
+                        dir('protfilio_gitops') {
+                            sh """
+                                sed -i 's/^version: .*/version: ${env.VERSION}/' ./cowsay/Chart.yaml
+                                sed -i 's/^appVersion: .*/appVersion: "${env.VERSION}"/' ./cowsay/Chart.yaml
+                                sed -i 's/^[ \t]*tag: .*/  tag: "${env.VERSION}"/' ./cowsay/values.yaml
+                            """
+
+                            sh 'cat cowsay/Chart.yaml'
+
+                            sh """
+                                git config user.name "yuvalmadari1"
+                                git config user.email "yuvalmadari1@gmail.com"
+                                git add ./cowsay/Chart.yaml ./cowsay/values.yaml
+                                git commit -m "Update chart version to ${env.VERSION}"
+                                GIT_SSH_COMMAND="ssh -i \$SSH_KEY -o StrictHostKeyChecking=no" git push origin main
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        always {
+            script { 
+                emailext (
+                    to: "yuvalmadari1@gmail.com",
+                    subject: "Job #${env.BUILD_NUMBER} on branch ${env.BRANCH_NAME}",
+                    body: """
+                    <p><strong>Job Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Status:</strong> ${currentBuild.currentResult}</p>
+                    <p><strong>Branch:</strong> ${env.BRANCH_NAME}</p>
+                    <p><strong>Tests:</strong> ${env.logsStatus}</p>
+                    <p>Check the <a href="${env.BUILD_URL}">Job Details</a>.</p>
+                    """,
+                    mimeType: 'text/html'
+                )
+            cleanWs()
+            }
+        }
+    }
+}
+

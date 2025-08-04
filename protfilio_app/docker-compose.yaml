@@ -1,0 +1,53 @@
+services:
+
+  db:
+    image: postgres:15
+    container_name: db
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    expose:
+      - "5432" # Expose to other containers, not to host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} && psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -c 'SELECT 1;'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+
+  app:
+    image: "${IMAGE_NAME}:${VERSION}"
+    container_name: app
+    env_file: .env
+    networks:
+      - backend
+      - frontend
+    expose:
+      - "5000" # Expose to other containers, not to host
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+
+
+  nginx:
+    image: "nginx:${VERSION}"
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - frontend
+
+volumes:
+  pgdata:
+
+networks:
+  backend:
+  frontend:

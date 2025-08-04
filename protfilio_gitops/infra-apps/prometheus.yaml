@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "54.0.1" # Use latest stable version
+    helm:
+      releaseName: prometheus
+      values: |
+        grafana:
+          grafana.ini:
+            smtp:
+              enabled: true
+              host: smtp.gmail.com:587
+              fromAddress: admin@gmail.com
+              fromName: Grafana
+          # Use the dedicated SMTP block for existing secrets
+          smtp:
+            existingSecret: grafana-smtp  # This should match your Secret's metadata.name
+            passwordKey: password
+            userKey: user
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

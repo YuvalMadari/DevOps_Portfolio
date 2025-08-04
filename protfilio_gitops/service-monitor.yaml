@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cowsay-servicemonitor
+  namespace: default
+  labels:
+    app.kubernetes.io/name: cowsay
+    app.kubernetes.io/instance: cowsay
+    release: prometheus  # This label helps Prometheus discover the ServiceMonitor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cowsay
+      app.kubernetes.io/instance: cowsay
+  endpoints:
+  - port: http  # Matches the port name in your service
+    path: /metrics  # Path where metrics are exposed
+    interval: 30s  # How often to scrape metrics
+    scrapeTimeout: 10s  # Timeout for each scrape
+    honorLabels: false
+  namespaceSelector:
+    matchNames:
+    - default

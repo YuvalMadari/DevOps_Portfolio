@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cowsay
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@gitlab.com:yuvalmadari1/protfilio_gitops.git
+    targetRevision: HEAD
+    path: cowsay
+    helm: {} # If want to override the default values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

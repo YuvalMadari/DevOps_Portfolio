@@ -1,0 +1,23 @@
+kibanaConfig:
+  kibana.yml: |
+    xpack.encryptedSavedObjects.encryptionKey: "q7R9cYHk5bBPEt36QhB4NHY6gONzzqqAH"
+
+enabled: true
+replicaCount: 1
+persistence:
+  enabled: false
+elasticsearch:
+  hosts:
+    - "efk-stack-elasticsearch"
+  port: 9200
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+configuration:
+  server.host: "0.0.0.0"
+  server.port: 5601
+  elasticsearch.hosts: ["http://efk-stack-elasticsearch:9200"]

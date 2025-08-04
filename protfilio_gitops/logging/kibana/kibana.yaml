@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kibana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"  # Changed to 3 so it deploys after Elasticsearch
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: kibana
+    targetRevision: 12.1.1
+    helm:
+      releaseName: kibana
+      # Use inline values instead of valueFiles for external charts
+      values: |
+        # Basic deployment settings
+        replicaCount: 1
+        persistence:
+          enabled: false
+        
+        # Resources
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        
+        # Elasticsearch connection - CORRECTED SERVICE NAME
+        # The Bitnami Elasticsearch chart creates a service named "elasticsearch"
+        elasticsearch:
+          hosts:
+            - "elasticsearch"  # This is the correct service name from your ES deployment
+          port: 9200
+          security:
+            auth:
+              enabled: false  # Match your Elasticsearch security setting
+        
+        # Kibana configuration
+        configuration:
+          server.host: "0.0.0.0"
+          server.port: 5601
+          # Use the correct service name here too
+          elasticsearch.hosts: ["http://elasticsearch:9200"]
+        
+        # Additional Kibana config via kibana.yml
+        kibanaConfig:
+          kibana.yml: |
+            server.host: "0.0.0.0"
+            server.port: 5601
+            elasticsearch.hosts: ["http://elasticsearch:9200"]
+            xpack.encryptedSavedObjects.encryptionKey: "q7R9cYHk5bBPEt36QhB4NHY6gONzzqqAH"
+            xpack.security.enabled: false
+            logging.level: info
+        
+        # Service configuration
+        service:
+          type: ClusterIP
+          port: 5601
+        
+        # Disable features we don't need initially
+        metrics:
+          enabled: false
+        
+        # Optional: Add ingress if you want external access
+        ingress:
+          enabled: false
+          # enabled: true
+          # className: "nginx"  # Change to your ingress class
+          # hostname: kibana.your-domain.com
+          # annotations:
+          #   nginx.ingress.kubernetes.io/rewrite-target: /
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

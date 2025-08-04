@@ -1,0 +1,29 @@
+enabled: true
+global:
+  storageClass: "gp2"
+master:
+  replicaCount: 1
+  masterOnly: false
+  persistence:
+    enabled: true
+    storageClass: "gp2"
+    size: 4Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  heapSize: 512m
+  # Disable dedicated node types (master will handle everything)
+data:
+  replicaCount: 0
+coordinating:
+  replicaCount: 0
+ingest:
+  replicaCount: 0
+security:
+  enabled: false
+discovery:
+  type: single-node

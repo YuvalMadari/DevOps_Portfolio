@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: elasticsearch
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: elasticsearch
+    targetRevision: 22.0.6
+    helm:
+      releaseName: elasticsearch
+      # Use inline values instead of valueFiles for external charts
+      values: |
+        global:
+          storageClass: "gp2"
+        
+        master:
+          replicaCount: 1
+          masterOnly: false
+          persistence:
+            enabled: true
+            storageClass: "gp2"
+            size: 4Gi
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          heapSize: 512m
+        
+        # Disable all other node types
+        data:
+          replicaCount: 0
+        
+        coordinating:
+          replicaCount: 0
+        
+        ingest:
+          replicaCount: 0
+        
+        security:
+          enabled: false
+        
+        # Single node discovery
+        clusterName: "elasticsearch"
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
