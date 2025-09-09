@@ -1,9 +1,18 @@
 # 📖 DevOps_Portfolio
-This project implements a cloud-native application stack designed to mirror production-grade DevOps workflows. A Flask-based REST API backed by PostgreSQL is containerized and deployed onto AWS EKS, with all infrastructure provisioned and managed via Terraform to ensure repeatability and consistency. Application delivery is automated through a Jenkins CI/CD pipeline, incorporating testing, image packaging, and Helm-driven Kubernetes deployments. Observability and reliability are addressed with Fluent Bit for log aggregation and Prometheus + Grafana for metrics collection and visualization. The solution follows AWS best practices for scalability, security, and operational visibility, demonstrating end-to-end DevOps automation across infrastructure, application delivery, and monitoring.
-
-## ⚙️ Architecture
 
 ![alt text](./overview.png)
+
+## Project Overview
+This project implements a cloud-native application stack designed to mirror production-grade DevOps workflows. A Flask-based REST API backed by PostgreSQL is containerized and deployed onto AWS EKS, with all infrastructure provisioned and managed via Terraform to ensure repeatability and consistency. Application delivery is automated through a Jenkins CI/CD pipeline, incorporating testing, image packaging, and Helm-driven Kubernetes deployments. Observability and reliability are addressed with Fluent Bit for log aggregation and Prometheus + Grafana for metrics collection and visualization. The solution follows AWS best practices for scalability, security, and operational visibility, demonstrating end-to-end DevOps automation across infrastructure, application delivery, and monitoring.
+
+To reflect a real-world setup, the project is structured into three separate GitLab repositories:
+
+protfilio_app – Application code and CI/CD pipeline
+
+protfilio_gitops – Kubernetes and Argo CD manifests (GitOps-driven delivery)
+
+protfilio_infra – Terraform-based Infrastructure as Code
+
 
 ## 📂 Project Overview Structure
 ```
