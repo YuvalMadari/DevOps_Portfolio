@@ -6,14 +6,14 @@ This project implements a cloud-native application stack designed to mirror prod
 ![alt text](./overview.png)
 
 ## 📂 Project Overview Structure
- 
+```
 .
 ├── overview.png
 ├── protfilio_app       # Repo for the application and the CI/Cd PipeLine
 ├── protfilio_gitops    # Repo for Kubernetes & ArgoCD Manifests
 ├── protfilio_infra     # Repo for Iac 
 └── README.md
-
+```
 ## 🛠️ Tech Stack
 
 - Application: Python (Flask), Docker & Docker Compose
